@@ -47,22 +47,32 @@ function checkAuthState() {
 }
 
 /**
- * الحصول على بيانات المستخدم - تحديث الدالة
- * @param {string} userId معرف المستخدم
+ * تعديل دالة getUserData في ملف main.js
+ * المشكلة: عدم معالجة الأخطاء بشكل صحيح وعدم إيقاف مؤشر التحميل في حالة الخطأ
  */
 function getUserData(userId) {
-    dbRef.ref(`users/${userId}`).once('value')
+    showLoading('جاري تحميل بيانات المستخدم...');
+    
+    return dbRef.ref(`users/${userId}`).once('value')
         .then(snapshot => {
             if (snapshot.exists()) {
                 currentUser = snapshot.val();
                 currentUser.id = userId;
                 
+                // التحقق من حالة المستخدم
+                if (currentUser.status === 'disabled') {
+                    hideLoading();
+                    firebase.auth().signOut();
+                    showNotification('حساب معطل', 'تم تعطيل حسابك. يرجى التواصل مع المسؤول.', 'error');
+                    return Promise.reject(new Error('الحساب معطل'));
+                }
+                
                 // التحقق من الفرع المحدد
                 if (currentUser.lastBranch) {
-                    getBranchData(currentUser.lastBranch);
+                    return getBranchData(currentUser.lastBranch);
                 } else {
                     // استخدام الفرع الرئيسي
-                    dbRef.ref('branches').orderByChild('type').equalTo('main').once('value')
+                    return dbRef.ref('branches').orderByChild('type').equalTo('main').once('value')
                         .then(branchSnapshot => {
                             let mainBranch = null;
                             branchSnapshot.forEach(childSnapshot => {
@@ -72,38 +82,44 @@ function getUserData(userId) {
                             });
                             
                             if (mainBranch) {
-                                getBranchData(mainBranch.id);
+                                return getBranchData(mainBranch.id);
                             } else {
                                 // إنشاء فرع رئيسي افتراضي إذا لم يوجد
-                                createDefaultBranch();
+                                return createDefaultBranch();
                             }
                         })
                         .catch(error => {
                             console.error('خطأ في الحصول على بيانات الفرع الرئيسي:', error);
                             hideLoading();
                             showNotification('خطأ', 'حدث خطأ أثناء تحميل بيانات الفرع. يرجى المحاولة مرة أخرى.', 'error');
+                            return Promise.reject(error);
                         });
                 }
             } else {
                 // المستخدم موجود في Firebase Auth ولكن ليس لديه بيانات في قاعدة البيانات
-                signOut();
+                hideLoading();
+                firebase.auth().signOut();
                 showNotification('خطأ', 'لم يتم العثور على بيانات المستخدم. يرجى التواصل مع المسؤول.', 'error');
+                return Promise.reject(new Error('لم يتم العثور على بيانات المستخدم'));
             }
         })
         .catch(error => {
             console.error('خطأ في الحصول على بيانات المستخدم:', error);
             hideLoading();
             showNotification('خطأ', 'حدث خطأ أثناء تحميل بيانات المستخدم. يرجى المحاولة مرة أخرى.', 'error');
+            return Promise.reject(error);
         });
 }
 
 
+
+
 /**
- * الحصول على بيانات الفرع
- * @param {string} branchId معرف الفرع
+ * تعديل دالة getBranchData في ملف main.js
+ * المشكلة: عدم التعامل مع الأخطاء والوعود بشكل صحيح
  */
 function getBranchData(branchId) {
-    dbRef.ref(`branches/${branchId}`).once('value')
+    return dbRef.ref(`branches/${branchId}`).once('value')
         .then(snapshot => {
             if (snapshot.exists()) {
                 currentBranch = snapshot.val();
@@ -116,40 +132,49 @@ function getBranchData(branchId) {
                 });
                 
                 // تحميل إعدادات التطبيق
-                loadAppSettings();
+                return loadAppSettings();
             } else {
                 // الفرع غير موجود
                 hideLoading();
                 showNotification('خطأ', 'لم يتم العثور على بيانات الفرع. يرجى التواصل مع المسؤول.', 'error');
+                return Promise.reject(new Error('لم يتم العثور على بيانات الفرع'));
             }
         })
         .catch(error => {
             console.error('خطأ في الحصول على بيانات الفرع:', error);
             hideLoading();
             showNotification('خطأ', 'حدث خطأ أثناء تحميل بيانات الفرع. يرجى المحاولة مرة أخرى.', 'error');
+            return Promise.reject(error);
         });
 }
 
+
+
 /**
- * تحميل إعدادات التطبيق
+ * تعديل دالة loadAppSettings في ملف main.js
+ * المشكلة: عدم معالجة الأخطاء بشكل صحيح وعدم إرجاع وعد
  */
 function loadAppSettings() {
-    dbRef.ref('settings').once('value')
+    return dbRef.ref('settings').once('value')
         .then(snapshot => {
             if (snapshot.exists()) {
                 appSettings = snapshot.val();
             } else {
                 // إنشاء إعدادات افتراضية إذا لم توجد
                 appSettings = createDefaultSettings();
+                
+                // حفظ الإعدادات الافتراضية في قاعدة البيانات
+                return dbRef.ref('settings').set(appSettings).then(() => appSettings);
             }
             
             // تهيئة واجهة المستخدم
-            initializeApp();
+            return initializeApp();
         })
         .catch(error => {
             console.error('خطأ في تحميل إعدادات التطبيق:', error);
             hideLoading();
             showNotification('خطأ', 'حدث خطأ أثناء تحميل إعدادات التطبيق. يرجى المحاولة مرة أخرى.', 'error');
+            return Promise.reject(error);
         });
 }
 
@@ -269,81 +294,76 @@ function createDefaultSettings() {
     return defaultSettings;
 }
 
+
+
 /**
- * تهيئة التطبيق - تحديث الدالة
+ * تعديل في دالة handleLogin في ملف main.js
+ * المشكلة: عدم معالجة الأخطاء بشكل صحيح
  */
-function initializeApp() {
-    console.log('بدء تهيئة التطبيق');
+function handleLogin(event) {
+    event.preventDefault();
     
-    try {
-        // التحقق من وجود المستخدم والفرع
-        if (!currentUser) {
-            throw new Error('لم يتم تحميل بيانات المستخدم');
-        }
-        
-        if (!currentBranch) {
-            throw new Error('لم يتم تحميل بيانات الفرع');
-        }
-        
-        // تعيين اسم المستخدم وصلاحيته
-        const userNameElement = document.getElementById('current-user-name');
-        const userRoleElement = document.getElementById('current-user-role');
-        
-        if (userNameElement) {
-            userNameElement.textContent = `مرحباً، ${currentUser.fullName}`;
-        }
-        
-        if (userRoleElement) {
-            userRoleElement.textContent = getCurrentRoleName(currentUser.role);
-        }
-        
-        // تعيين اسم الفرع الحالي
-        const branchNameElement = document.getElementById('current-branch-name');
-        if (branchNameElement) {
-            branchNameElement.textContent = currentBranch.name;
-        }
-        
-        // تحميل البيانات الأساسية
-        Promise.all([
-            loadCategories(),
-            loadCustomers()
-        ])
-        .then(() => {
-            console.log('تم تحميل الأقسام والعملاء بنجاح');
-            return loadProducts();
-        })
-        .then(() => {
-            console.log('تم تحميل المنتجات بنجاح');
-            
-            // تهيئة الواجهة حسب صلاحيات المستخدم
-            setupUserInterface();
-            
-            // إخفاء شاشة تسجيل الدخول وإظهار التطبيق
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const branchId = document.getElementById('branch-selection').value;
+    
+    if (!username || !password) {
+        showNotification('خطأ', 'يرجى إدخال اسم المستخدم وكلمة المرور', 'error');
+        return;
+    }
+    
+    // حفظ الفرع المحدد في التخزين المؤقت
+    if (branchId) {
+        sessionStorage.setItem('selectedBranch', branchId);
+    }
+    
+    // عرض مؤشر التحميل
+    showLoading('جاري تسجيل الدخول...');
+    
+    // التحقق من قاعدة البيانات
+    if (typeof firebase === 'undefined') {
+        hideLoading();
+        showNotification('خطأ', 'Firebase غير متاح. يرجى تحديث الصفحة والمحاولة مرة أخرى.', 'error');
+        return;
+    }
+    
+    // التحقق من dbRef
+    if (typeof dbRef === 'undefined' || dbRef === null) {
+        try {
+            dbRef = firebase.database();
+            console.log('تمت تهيئة dbRef في handleLogin');
+        } catch (error) {
             hideLoading();
-            hideLoginForm();
-            showAppContainer();
-            
-            // تسجيل النشاط
-            logUserActivity('login', 'تسجيل الدخول إلى النظام');
-            
-            // عرض رسالة ترحيب
-            showNotification('مرحباً', `مرحباً بك ${currentUser.fullName} في نظام نقطة البيع`, 'success');
+            showNotification('خطأ', 'فشل الاتصال بقاعدة البيانات. يرجى تحديث الصفحة والمحاولة مرة أخرى.', 'error');
+            console.error('Error initializing Firebase Database in handleLogin:', error);
+            return;
+        }
+    }
+    
+    console.log('جاري محاولة تسجيل الدخول للمستخدم:', username);
+    
+    // تسجيل الدخول
+    loginWithUsername(username, password)
+        .then(() => {
+            console.log('تم تسجيل الدخول بنجاح للمستخدم:', username);
+            // ستتم معالجة نجاح تسجيل الدخول في onAuthStateChanged
         })
         .catch(error => {
-            console.error('خطأ في تهيئة التطبيق:', error);
+            console.error('خطأ في تسجيل الدخول:', error);
             hideLoading();
             
-            // محاولة إظهار التطبيق على الرغم من الخطأ
-            hideLoginForm();
-            showAppContainer();
+            // زيادة عداد المحاولات الفاشلة
+            authFailCount++;
             
-            showNotification('تحذير', 'تم تسجيل الدخول بنجاح ولكن حدثت بعض الأخطاء في تحميل البيانات', 'warning');
+            // التحقق من عدد المحاولات
+            if (authFailCount >= (appSettings?.security?.loginAttempts || 5)) {
+                // قفل تسجيل الدخول
+                lockLogin();
+            } else {
+                // عرض رسالة الخطأ
+                showLoginError(error);
+            }
         });
-    } catch (error) {
-        console.error('خطأ في تهيئة التطبيق:', error);
-        hideLoading();
-        showNotification('خطأ', 'حدث خطأ أثناء تهيئة التطبيق. يرجى تحديث الصفحة والمحاولة مرة أخرى.', 'error');
-    }
 }
 
 /**

@@ -258,11 +258,30 @@ function handleLoginSubmit(event) {
  */
 function loginWithUsername(username, password) {
     return new Promise((resolve, reject) => {
+        // تأكيد أن مرجع قاعدة البيانات متاح
+        if (typeof dbRef === 'undefined' || dbRef === null) {
+            try {
+                dbRef = firebase.database();
+                console.log('تمت إعادة تهيئة dbRef');
+            } catch (error) {
+                reject({
+                    code: 'database/error',
+                    message: 'قاعدة البيانات غير متاحة. يرجى تحديث الصفحة والمحاولة مرة أخرى.'
+                });
+                return;
+            }
+        }
+        
         // التحقق من قفل تسجيل الدخول
         if (isLoginLocked()) {
-            reject({ code: 'auth/too-many-requests', message: 'تم تجاوز الحد الأقصى لمحاولات تسجيل الدخول. يرجى المحاولة مرة أخرى لاحقاً.' });
+            reject({
+                code: 'auth/too-many-requests',
+                message: 'تم تجاوز الحد الأقصى لمحاولات تسجيل الدخول. يرجى المحاولة مرة أخرى لاحقاً.'
+            });
             return;
         }
+        
+        console.log('جاري البحث عن المستخدم:', username);
         
         // البحث عن المستخدم في قاعدة البيانات
         dbRef.ref('users').orderByChild('username').equalTo(username).once('value')
@@ -276,14 +295,28 @@ function loginWithUsername(username, password) {
                         userData = childSnapshot.val();
                     });
                     
+                    console.log('تم العثور على المستخدم:', userId);
+                    
                     // التحقق من حالة المستخدم
                     if (userData.status === 'disabled') {
-                        reject({ code: 'auth/user-disabled', message: 'تم تعطيل هذا الحساب. يرجى التواصل مع المسؤول.' });
+                        reject({
+                            code: 'auth/user-disabled',
+                            message: 'تم تعطيل هذا الحساب. يرجى التواصل مع المسؤول.'
+                        });
+                        return;
+                    }
+                    
+                    // تأكيد أن البريد الإلكتروني موجود
+                    if (!userData.email) {
+                        reject({
+                            code: 'auth/invalid-email',
+                            message: 'بيانات المستخدم غير مكتملة. يرجى التواصل مع المسؤول.'
+                        });
                         return;
                     }
                     
                     // تسجيل الدخول باستخدام Firebase Auth
-                    firebase.auth().signInWithEmailAndPassword(userData.email, password)
+                    return firebase.auth().signInWithEmailAndPassword(userData.email, password)
                         .then(result => {
                             // إعادة تعيين عداد المحاولات الفاشلة
                             authFailCount = 0;
@@ -294,23 +327,35 @@ function loginWithUsername(username, password) {
                             resolve(result);
                         })
                         .catch(error => {
+                            console.error('خطأ في المصادقة:', error);
+                            
                             // التحقق من نوع الخطأ
                             if (error.code === 'auth/wrong-password') {
-                                reject({ code: error.code, message: 'كلمة المرور غير صحيحة' });
+                                reject({
+                                    code: error.code,
+                                    message: 'كلمة المرور غير صحيحة'
+                                });
                             } else {
                                 reject(error);
                             }
                         });
                 } else {
-                    reject({ code: 'auth/user-not-found', message: 'اسم المستخدم غير موجود' });
+                    console.log('لم يتم العثور على المستخدم:', username);
+                    reject({
+                        code: 'auth/user-not-found',
+                        message: 'اسم المستخدم غير موجود'
+                    });
                 }
             })
             .catch(error => {
-                reject({ code: 'database/error', message: error.message || 'حدث خطأ أثناء البحث عن المستخدم' });
+                console.error('خطأ في البحث عن المستخدم:', error);
+                reject({
+                    code: 'database/error',
+                    message: error.message || 'حدث خطأ أثناء البحث عن المستخدم'
+                });
             });
     });
 }
-
 /**
  * عرض خطأ تسجيل الدخول
  * @param {Object} error كائن الخطأ

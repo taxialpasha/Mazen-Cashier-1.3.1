@@ -513,48 +513,56 @@ function handleLogin(event) {
         return;
     }
     
+    // حفظ الفرع المحدد في التخزين المؤقت
+    if (branchId) {
+        sessionStorage.setItem('selectedBranch', branchId);
+    }
+    
+    // عرض مؤشر التحميل
     showLoading('جاري تسجيل الدخول...');
     
-    // البحث عن المستخدم في قاعدة البيانات
-    dbRef.ref('users').orderByChild('username').equalTo(username).once('value')
-        .then(snapshot => {
-            if (snapshot.exists()) {
-                let userId = null;
-                let userData = null;
-                
-                snapshot.forEach(childSnapshot => {
-                    userId = childSnapshot.key;
-                    userData = childSnapshot.val();
-                });
-                
-                // التسجيل باستخدام Firebase Auth
-                return firebase.auth().signInWithEmailAndPassword(userData.email, password)
-                    .then(() => {
-                        // تحديث بيانات الفرع المحدد
-                        if (branchId) {
-                            return dbRef.ref(`users/${userId}`).update({
-                                lastBranch: branchId,
-                                lastLogin: new Date().toISOString()
-                            });
-                        }
-                        return Promise.resolve();
-                    });
-            } else {
-                hideLoading();
-                showNotification('خطأ', 'اسم المستخدم غير موجود', 'error');
-                return Promise.reject(new Error('اسم المستخدم غير موجود'));
-            }
+    // التحقق من قاعدة البيانات
+    if (typeof firebase === 'undefined') {
+        hideLoading();
+        showNotification('خطأ', 'Firebase غير متاح. يرجى تحديث الصفحة والمحاولة مرة أخرى.', 'error');
+        return;
+    }
+    
+    // التحقق من dbRef
+    if (typeof dbRef === 'undefined' || dbRef === null) {
+        try {
+            dbRef = firebase.database();
+            console.log('تمت تهيئة dbRef في handleLogin');
+        } catch (error) {
+            hideLoading();
+            showNotification('خطأ', 'فشل الاتصال بقاعدة البيانات. يرجى تحديث الصفحة والمحاولة مرة أخرى.', 'error');
+            console.error('Error initializing Firebase Database in handleLogin:', error);
+            return;
+        }
+    }
+    
+    console.log('جاري محاولة تسجيل الدخول للمستخدم:', username);
+    
+    // تسجيل الدخول
+    loginWithUsername(username, password)
+        .then(() => {
+            console.log('تم تسجيل الدخول بنجاح للمستخدم:', username);
+            // ستتم معالجة نجاح تسجيل الدخول في onAuthStateChanged
         })
         .catch(error => {
             console.error('خطأ في تسجيل الدخول:', error);
             hideLoading();
             
-            if (error.code === 'auth/wrong-password') {
-                showNotification('خطأ', 'كلمة المرور غير صحيحة', 'error');
-            } else if (error.code === 'auth/user-not-found') {
-                showNotification('خطأ', 'البريد الإلكتروني غير مسجل', 'error');
+            // زيادة عداد المحاولات الفاشلة
+            authFailCount++;
+            
+            // التحقق من عدد المحاولات
+            if (authFailCount >= (appSettings?.security?.loginAttempts || 5)) {
+                // قفل تسجيل الدخول
+                lockLogin();
             } else {
-                showNotification('خطأ', 'فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.', 'error');
+                // عرض رسالة الخطأ
+                showLoginError(error);
             }
         });
 }
@@ -2378,22 +2386,26 @@ function renderProduct(product, container) {
     
     container.appendChild(productCard);
 }
-
-// main.js modification
+// في main.js
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Firebase first
+    // تهيئة Firebase أولاً
     try {
-        firebase.initializeApp(firebaseConfig);
-        console.log('Firebase initialized successfully');
-        
-        // Set the database reference
-        dbRef = firebase.database();
-        
-        // Continue with the rest of the initialization
-        checkAuthState();
-        setupEventListeners();
+        if (typeof firebase !== 'undefined') {
+            firebase.initializeApp(firebaseConfig);
+            console.log('تم تهيئة Firebase بنجاح');
+            
+            // تعيين مرجع قاعدة البيانات بشكل عام
+            window.dbRef = firebase.database();
+            
+            // استمرار مع بقية التهيئة
+            checkAuthState();
+            setupEventListeners();
+        } else {
+            console.error('Firebase غير متاح');
+            showNotification('خطأ', 'فشل في تهيئة Firebase. يرجى إعادة تحميل الصفحة.', 'error');
+        }
     } catch (error) {
-        console.error('Error initializing Firebase:', error);
-        showNotification('خطأ', 'فشل في تهيئة قاعدة البيانات. يرجى إعادة تحميل الصفحة.', 'error');
+        console.error('خطأ في تهيئة Firebase:', error);
+        showNotification('خطأ', 'حدث خطأ أثناء تهيئة Firebase. يرجى إعادة تحميل الصفحة.', 'error');
     }
 });

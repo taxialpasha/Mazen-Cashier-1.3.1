@@ -98,9 +98,8 @@ const userRoles = [
     },
     { 
         id: "inventory", 
-        name: "مسؤول
+        name: "المسؤل",
         
-        { 
         id: "inventory", 
         name: "مسؤول مخزون", 
         description: "إدارة المخزون والمنتجات" 

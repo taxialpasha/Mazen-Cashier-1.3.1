@@ -764,6 +764,7 @@ function createBackup(name, options = {}) {
         });
 }
 
+
 /**
  * استعادة نسخة احتياطية
  * @param {string} backupId معرف النسخة الاحتياطية
@@ -789,7 +790,6 @@ function restoreBackup(backupId, options = {}) {
                     // استعادة البيانات المطلوبة
                     if (options.products && backupData.branches) {
                         Object.keys(backupData.branches).forEach(branchId => {
-                            if (backupObject.keys(backupData.branches).forEach(branchId => {
                             if (backupData.branches[branchId].categories) {
                                 updates[`branches/${branchId}/categories`] = backupData.branches[branchId].categories;
                             }
@@ -841,7 +841,6 @@ function restoreBackup(backupId, options = {}) {
                 });
         });
 }
-
 /**
  * حذف نسخة احتياطية
  * @param {string} backupId معرف النسخة الاحتياطية
@@ -1034,6 +1033,29 @@ function listenToNotifications(userId, callback) {
     
     // إرجاع دالة لإلغاء الاستماع
     return () => query.off('value');
+}
+
+
+// Replace the last part of database.js with:
+const databaseModule = {
+    initDatabase,
+    getAuthState,
+    loginWithUsername,
+    logout,
+    getCurrentUser,
+    // Include all the other exported functions...
+    exportDataToJSON,
+    exportDataToCSV
+};
+
+// If in a browser environment
+if (typeof window !== 'undefined') {
+    window.dbModule = databaseModule;
+}
+
+// If in Node.js environment
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = databaseModule;
 }
 
 /**

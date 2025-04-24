@@ -2303,4 +2303,19 @@ function addOrUpdateProduct() {
                 products.push(newProduct);
                 
                 // تسجيل النشاط
-                logUserActivity('add_product', 'إضافة منتج جديد', { productId: snapshot.key });
+                                logUserActivity('add_product', 'إضافة منتج جديد', { productId: snapshot.key });
+                            });
+                    }
+                
+                    // إخفاء مؤشر التحميل
+                    hideLoading();
+                
+                    // تحديث جدول المخزون
+                    renderInventoryTable();
+                
+                    // إغلاق المودال
+                    hideModal('add-product-modal');
+                
+                    // عرض رسالة نجاح
+                    showNotification('تم بنجاح', 'تم حفظ المنتج بنجاح', 'success');
+                }

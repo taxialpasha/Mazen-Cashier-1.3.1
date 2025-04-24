@@ -1003,7 +1003,7 @@ function editTaxCategory(index) {
             <div class="swal-form" style="text-align: right;">
                 <div class="form-group">
                     <label for="tax-category-name">القسم</label>
-                    <input type="text" id="tax-category-name" class="swal2-input" value="${<label for="tax-category-name">القسم</label>
+                 <label for="tax-category-name">القسم</label>
                     <input type="text" id="tax-category-name" class="swal2-input" value="${category.name}" readonly style="width: 100%;">
                 </div>
                 <div class="form-group">

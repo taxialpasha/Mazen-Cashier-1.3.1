@@ -1433,6 +1433,25 @@ function handleSignup(event) {
     // عرض مؤشر التحميل
     showLoading('جاري إنشاء الحساب...');
     
+    // التحقق من وجود dbRef
+    if (typeof firebase === 'undefined') {
+        hideLoading();
+        showNotification('خطأ', 'Firebase غير متاح. يرجى تحديث الصفحة والمحاولة مرة أخرى.', 'error');
+        return;
+    }
+
+    // إنشاء مرجع لقاعدة البيانات إذا لم يكن موجودًا
+    if (typeof dbRef === 'undefined' || dbRef === null) {
+        try {
+            dbRef = firebase.database();
+        } catch (error) {
+            hideLoading();
+            showNotification('خطأ', 'فشل الاتصال بقاعدة البيانات. يرجى تحديث الصفحة والمحاولة مرة أخرى.', 'error');
+            console.error('Error initializing Firebase Database:', error);
+            return;
+        }
+    }
+
     // التحقق من عدم وجود اسم المستخدم بالفعل
     dbRef.ref('users').orderByChild('username').equalTo(username).once('value')
         .then(snapshot => {

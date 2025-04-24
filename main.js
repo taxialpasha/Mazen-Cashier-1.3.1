@@ -24,7 +24,12 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
- * التحقق من حالة تسجيل الدخول
+ * إصلاح مشكلة تحميل المنتجات عند تسجيل الدخول
+ * أضف هذا الكود إلى main.js أو قم بتعديل الدوال الموجودة
+ */
+
+/**
+ * التحقق من حالة تسجيل الدخول - تحديث الدالة
  */
 function checkAuthState() {
     showLoading('جاري التحقق من حالة تسجيل الدخول...');
@@ -42,7 +47,7 @@ function checkAuthState() {
 }
 
 /**
- * الحصول على بيانات المستخدم
+ * الحصول على بيانات المستخدم - تحديث الدالة
  * @param {string} userId معرف المستخدم
  */
 function getUserData(userId) {
@@ -91,6 +96,7 @@ function getUserData(userId) {
             showNotification('خطأ', 'حدث خطأ أثناء تحميل بيانات المستخدم. يرجى المحاولة مرة أخرى.', 'error');
         });
 }
+
 
 /**
  * الحصول على بيانات الفرع
@@ -264,34 +270,80 @@ function createDefaultSettings() {
 }
 
 /**
- * تهيئة التطبيق
+ * تهيئة التطبيق - تحديث الدالة
  */
 function initializeApp() {
-    // تعيين اسم المستخدم وصلاحيته
-    document.getElementById('current-user-name').textContent = `مرحباً، ${currentUser.fullName}`;
-    document.getElementById('current-user-role').textContent = getCurrentRoleName(currentUser.role);
+    console.log('بدء تهيئة التطبيق');
     
-    // تعيين اسم الفرع الحالي
-    document.getElementById('current-branch-name').textContent = currentBranch.name;
-    
-    // تحميل البيانات الأساسية
-    loadCategories();
-    loadProducts();
-    loadCustomers();
-    
-    // تهيئة الواجهة حسب صلاحيات المستخدم
-    setupUserInterface();
-    
-    // إخفاء شاشة تسجيل الدخول وإظهار التطبيق
-    hideLoading();
-    hideLoginForm();
-    showAppContainer();
-    
-    // تسجيل النشاط
-    logUserActivity('login', 'تسجيل الدخول إلى النظام');
-    
-    // عرض رسالة ترحيب
-    showNotification('مرحباً', `مرحباً بك ${currentUser.fullName} في نظام نقطة البيع`, 'success');
+    try {
+        // التحقق من وجود المستخدم والفرع
+        if (!currentUser) {
+            throw new Error('لم يتم تحميل بيانات المستخدم');
+        }
+        
+        if (!currentBranch) {
+            throw new Error('لم يتم تحميل بيانات الفرع');
+        }
+        
+        // تعيين اسم المستخدم وصلاحيته
+        const userNameElement = document.getElementById('current-user-name');
+        const userRoleElement = document.getElementById('current-user-role');
+        
+        if (userNameElement) {
+            userNameElement.textContent = `مرحباً، ${currentUser.fullName}`;
+        }
+        
+        if (userRoleElement) {
+            userRoleElement.textContent = getCurrentRoleName(currentUser.role);
+        }
+        
+        // تعيين اسم الفرع الحالي
+        const branchNameElement = document.getElementById('current-branch-name');
+        if (branchNameElement) {
+            branchNameElement.textContent = currentBranch.name;
+        }
+        
+        // تحميل البيانات الأساسية
+        Promise.all([
+            loadCategories(),
+            loadCustomers()
+        ])
+        .then(() => {
+            console.log('تم تحميل الأقسام والعملاء بنجاح');
+            return loadProducts();
+        })
+        .then(() => {
+            console.log('تم تحميل المنتجات بنجاح');
+            
+            // تهيئة الواجهة حسب صلاحيات المستخدم
+            setupUserInterface();
+            
+            // إخفاء شاشة تسجيل الدخول وإظهار التطبيق
+            hideLoading();
+            hideLoginForm();
+            showAppContainer();
+            
+            // تسجيل النشاط
+            logUserActivity('login', 'تسجيل الدخول إلى النظام');
+            
+            // عرض رسالة ترحيب
+            showNotification('مرحباً', `مرحباً بك ${currentUser.fullName} في نظام نقطة البيع`, 'success');
+        })
+        .catch(error => {
+            console.error('خطأ في تهيئة التطبيق:', error);
+            hideLoading();
+            
+            // محاولة إظهار التطبيق على الرغم من الخطأ
+            hideLoginForm();
+            showAppContainer();
+            
+            showNotification('تحذير', 'تم تسجيل الدخول بنجاح ولكن حدثت بعض الأخطاء في تحميل البيانات', 'warning');
+        });
+    } catch (error) {
+        console.error('خطأ في تهيئة التطبيق:', error);
+        hideLoading();
+        showNotification('خطأ', 'حدث خطأ أثناء تهيئة التطبيق. يرجى تحديث الصفحة والمحاولة مرة أخرى.', 'error');
+    }
 }
 
 /**
@@ -446,7 +498,7 @@ function setupEventListeners() {
 }
 
 /**
- * معالجة تسجيل الدخول
+ * معالجة تسجيل الدخول - تحديث الدالة
  * @param {Event} event حدث النموذج
  */
 function handleLogin(event) {
@@ -480,36 +532,32 @@ function handleLogin(event) {
                     .then(() => {
                         // تحديث بيانات الفرع المحدد
                         if (branchId) {
-                            dbRef.ref(`users/${userId}`).update({
+                            return dbRef.ref(`users/${userId}`).update({
                                 lastBranch: branchId,
                                 lastLogin: new Date().toISOString()
                             });
                         }
-                    })
-                    .catch(error => {
-                        console.error('خطأ في تسجيل الدخول:', error);
-                        hideLoading();
-                        
-                        if (error.code === 'auth/wrong-password') {
-                            showNotification('خطأ', 'كلمة المرور غير صحيحة', 'error');
-                        } else if (error.code === 'auth/user-not-found') {
-                            showNotification('خطأ', 'البريد الإلكتروني غير مسجل', 'error');
-                        } else {
-                            showNotification('خطأ', 'فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.', 'error');
-                        }
+                        return Promise.resolve();
                     });
             } else {
                 hideLoading();
                 showNotification('خطأ', 'اسم المستخدم غير موجود', 'error');
+                return Promise.reject(new Error('اسم المستخدم غير موجود'));
             }
         })
         .catch(error => {
-            console.error('خطأ في البحث عن المستخدم:', error);
+            console.error('خطأ في تسجيل الدخول:', error);
             hideLoading();
-            showNotification('خطأ', 'حدث خطأ أثناء تسجيل الدخول. يرجى المحاولة مرة أخرى.', 'error');
+            
+            if (error.code === 'auth/wrong-password') {
+                showNotification('خطأ', 'كلمة المرور غير صحيحة', 'error');
+            } else if (error.code === 'auth/user-not-found') {
+                showNotification('خطأ', 'البريد الإلكتروني غير مسجل', 'error');
+            } else {
+                showNotification('خطأ', 'فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.', 'error');
+            }
         });
 }
-
 /**
  * معالجة تسجيل الخروج
  */
@@ -1925,11 +1973,23 @@ let selectedCustomer = null;
 let selectedPaymentMethod = 'cash';
 
 /**
- * تحميل الأقسام
+ * تحميل الأقسام - تحديث الدالة
+ * @returns {Promise} وعد بإكمال العملية
  */
 function loadCategories() {
+    console.log('بدء تحميل الأقسام');
+    
     const categoriesList = document.getElementById('categories-list');
-    if (!categoriesList) return;
+    if (!categoriesList) {
+        console.warn('تحذير: لم يتم العثور على عنصر categories-list');
+        return Promise.resolve(); // ارجاع وعد محقق
+    }
+    
+    // التحقق من وجود الفرع
+    if (!currentBranch || !currentBranch.id) {
+        console.error('خطأ: لا يوجد فرع محدد');
+        return Promise.reject(new Error('لا يوجد فرع محدد'));
+    }
     
     // إضافة زر "جميع المنتجات"
     categoriesList.innerHTML = `
@@ -1940,7 +2000,7 @@ function loadCategories() {
     `;
     
     // تحميل الأقسام من قاعدة البيانات
-    dbRef.ref(`branches/${currentBranch.id}/categories`).once('value')
+    return dbRef.ref(`branches/${currentBranch.id}/categories`).once('value')
         .then(snapshot => {
             if (snapshot.exists()) {
                 categories = [];
@@ -1974,23 +2034,34 @@ function loadCategories() {
                     categoriesList.appendChild(categoryItem);
                 });
                 
-                // تحميل المنتجات بعد تحميل الأقسام
-                loadProducts();
+                console.log(`تم تحميل ${categories.length} قسم`);
+                return Promise.resolve(categories);
             } else {
+                console.log('لا توجد أقسام، إنشاء أقسام افتراضية');
                 // إنشاء بعض الأقسام الافتراضية إذا لم توجد
-                createDefaultCategories();
+                return createDefaultCategories();
             }
         })
         .catch(error => {
             console.error('خطأ في تحميل الأقسام:', error);
             showNotification('خطأ', 'حدث خطأ أثناء تحميل الأقسام', 'error');
+            return Promise.reject(error);
         });
 }
 
+
 /**
- * إنشاء أقسام افتراضية
+ * إنشاء أقسام افتراضية - تعديل الدالة لتُرجع وعداً
+ * @returns {Promise} وعد بإكمال العملية
  */
 function createDefaultCategories() {
+    console.log('بدء إنشاء أقسام افتراضية');
+    
+    // التحقق من وجود الفرع
+    if (!currentBranch || !currentBranch.id) {
+        return Promise.reject(new Error('لا يوجد فرع محدد'));
+    }
+    
     const defaultCategories = [
         { name: 'الأطعمة', icon: 'fa-utensils', description: 'المنتجات الغذائية' },
         { name: 'المشروبات', icon: 'fa-coffee', description: 'المشروبات والعصائر' },
@@ -2006,26 +2077,43 @@ function createDefaultCategories() {
         return categoriesRef.push(category);
     });
     
-    Promise.all(promises)
+    return Promise.all(promises)
         .then(() => {
+            console.log('تم إنشاء الأقسام الافتراضية بنجاح');
+            showNotification('تم بنجاح', 'تم إنشاء أقسام افتراضية', 'success');
+            
             // إعادة تحميل الأقسام
-            loadCategories();
-        })
-        .catch(error => {
-            console.error('خطأ في إنشاء الأقسام الافتراضية:', error);
-            showNotification('خطأ', 'حدث خطأ أثناء إنشاء الأقسام الافتراضية', 'error');
+            return loadCategories();
         });
 }
 
+
 /**
- * تحميل المنتجات
+ * تحميل المنتجات - تحديث الدالة
+ * إضافة معالجة أخطاء أفضل وتكرار المحاولة
  */
 function loadProducts() {
+    // إظهار مؤشر تحميل (اختياري)
+    showLoading('جاري تحميل المنتجات...');
+    
+    // التحقق من وجود الفرع
+    if (!currentBranch || !currentBranch.id) {
+        hideLoading();
+        console.error('خطأ: لا يوجد فرع محدد');
+        showNotification('خطأ', 'لم يتم تحديد الفرع. يرجى المحاولة مرة أخرى.', 'error');
+        return;
+    }
+
+    console.log('بدء تحميل المنتجات للفرع:', currentBranch.id);
+    
     // تحميل المنتجات من قاعدة البيانات
     dbRef.ref(`branches/${currentBranch.id}/products`).once('value')
         .then(snapshot => {
+            hideLoading();
+            products = [];
+            
             if (snapshot.exists()) {
-                products = [];
+                console.log('تم العثور على منتجات');
                 
                 snapshot.forEach(childSnapshot => {
                     const product = childSnapshot.val();
@@ -2033,26 +2121,66 @@ function loadProducts() {
                     products.push(product);
                 });
                 
+                console.log(`تم تحميل ${products.length} منتج`);
+                
                 // عرض جميع المنتجات
-                filterProductsByCategory('all');
+                try {
+                    filterProductsByCategory('all');
+                } catch (err) {
+                    console.error('خطأ في عرض المنتجات:', err);
+                    showNotification('تنبيه', 'تم تحميل المنتجات ولكن حدث خطأ في عرضها', 'warning');
+                }
             } else {
+                console.log('لا توجد منتجات، إنشاء منتجات افتراضية');
                 // إنشاء بعض المنتجات الافتراضية إذا لم توجد
                 createDefaultProducts();
             }
         })
         .catch(error => {
+            hideLoading();
             console.error('خطأ في تحميل المنتجات:', error);
-            showNotification('خطأ', 'حدث خطأ أثناء تحميل المنتجات', 'error');
+            
+            // محاولة إنشاء منتجات افتراضية في حالة الخطأ
+            showNotification('خطأ', 'حدث خطأ أثناء تحميل المنتجات. جاري محاولة إنشاء منتجات افتراضية.', 'error');
+            
+            setTimeout(() => {
+                try {
+                    createDefaultProducts();
+                } catch (err) {
+                    console.error('خطأ في إنشاء المنتجات الافتراضية:', err);
+                    showNotification('خطأ', 'فشل في إنشاء المنتجات. يرجى تحديث الصفحة والمحاولة مرة أخرى.', 'error');
+                }
+            }, 1000);
         });
 }
 
+
 /**
- * إنشاء منتجات افتراضية
+ * إنشاء منتجات افتراضية - تحديث الدالة
  */
 function createDefaultProducts() {
-    // التحقق من وجود أقسام
-    if (categories.length === 0) {
+    console.log('بدء إنشاء منتجات افتراضية');
+    
+    // التحقق من وجود الفرع والأقسام
+    if (!currentBranch || !currentBranch.id) {
+        console.error('خطأ: لا يوجد فرع محدد');
+        showNotification('خطأ', 'لم يتم تحديد الفرع. يرجى المحاولة مرة أخرى.', 'error');
         return;
+    }
+    
+    // التحقق من وجود أقسام
+    if (!categories || categories.length === 0) {
+        console.log('لا توجد أقسام، إنشاء أقسام أولاً');
+        // إنشاء أقسام افتراضية أولاً ثم المنتجات
+        return createDefaultCategories()
+            .then(() => {
+                // بعد إنشاء الأقسام، قم بإنشاء المنتجات
+                setTimeout(createDefaultProducts, 1000);
+            })
+            .catch(error => {
+                console.error('خطأ في إنشاء الأقسام الافتراضية:', error);
+                showNotification('خطأ', 'حدث خطأ أثناء إنشاء الأقسام الافتراضية', 'error');
+            });
     }
     
     // إنشاء بعض المنتجات الافتراضية
@@ -2060,7 +2188,7 @@ function createDefaultProducts() {
         {
             name: 'لابتوب HP',
             price: 350000,
-            category: categories.find(c => c.name === 'الإلكترونيات')?.id || categories[0].id,
+            category: getFirstCategoryId(),
             icon: 'fa-laptop',
             stock: 15,
             barcode: generateBarcode('EAN13'),
@@ -2069,7 +2197,7 @@ function createDefaultProducts() {
         {
             name: 'هاتف سامسونج',
             price: 200000,
-            category: categories.find(c => c.name === 'الإلكترونيات')?.id || categories[0].id,
+            category: getFirstCategoryId(),
             icon: 'fa-mobile-alt',
             stock: 25,
             barcode: generateBarcode('EAN13'),
@@ -2078,7 +2206,7 @@ function createDefaultProducts() {
         {
             name: 'قميص قطني',
             price: 15000,
-            category: categories.find(c => c.name === 'الملابس')?.id || categories[0].id,
+            category: getFirstCategoryId(),
             icon: 'fa-tshirt',
             stock: 50,
             barcode: generateBarcode('EAN13'),
@@ -2087,7 +2215,7 @@ function createDefaultProducts() {
         {
             name: 'قهوة عربية',
             price: 3000,
-            category: categories.find(c => c.name === 'المشروبات')?.id || categories[0].id,
+            category: getFirstCategoryId(),
             icon: 'fa-coffee',
             stock: 100,
             barcode: generateBarcode('EAN13'),
@@ -2096,13 +2224,15 @@ function createDefaultProducts() {
         {
             name: 'عصير برتقال',
             price: 2000,
-            category: categories.find(c => c.name === 'المشروبات')?.id || categories[0].id,
+            category: getFirstCategoryId(),
             icon: 'fa-glass-citrus',
             stock: 80,
             barcode: generateBarcode('EAN13'),
             description: 'عصير برتقال طازج 100% بدون إضافات'
         }
     ];
+    
+    console.log('إضافة المنتجات الافتراضية:', defaultProducts.length);
     
     // إضافة المنتجات إلى قاعدة البيانات
     const productsRef = dbRef.ref(`branches/${currentBranch.id}/products`);
@@ -2113,8 +2243,11 @@ function createDefaultProducts() {
     
     Promise.all(promises)
         .then(() => {
+            console.log('تم إنشاء المنتجات الافتراضية بنجاح');
+            showNotification('تم بنجاح', 'تم إنشاء منتجات افتراضية', 'success');
+            
             // إعادة تحميل المنتجات
-            loadProducts();
+            setTimeout(loadProducts, 1000);
         })
         .catch(error => {
             console.error('خطأ في إنشاء المنتجات الافتراضية:', error);
@@ -2122,16 +2255,49 @@ function createDefaultProducts() {
         });
 }
 
+
+
 /**
- * تصفية المنتجات حسب القسم
+ * الحصول على معرف أول قسم متاح
+ * دالة مساعدة جديدة
+ * @returns {string} معرف القسم
+ */
+function getFirstCategoryId() {
+    if (categories && categories.length > 0) {
+        return categories[0].id;
+    } else {
+        return 'default'; // قسم افتراضي
+    }
+}
+
+
+/**
+ * تصفية المنتجات حسب القسم - تحديث الدالة
  * @param {string} categoryId معرف القسم
  */
 function filterProductsByCategory(categoryId) {
+    console.log('تصفية المنتجات حسب القسم:', categoryId);
+    
     const productsContainer = document.getElementById('products-container');
-    if (!productsContainer) return;
+    if (!productsContainer) {
+        console.warn('تحذير: لم يتم العثور على عنصر products-container');
+        return;
+    }
     
     // تفريغ حاوية المنتجات
     productsContainer.innerHTML = '';
+    
+    // التحقق من وجود منتجات
+    if (!products || products.length === 0) {
+        productsContainer.innerHTML = `
+            <div class="empty-products">
+                <i class="fas fa-box-open"></i>
+                <h3>لا توجد منتجات</h3>
+                <p>لم يتم العثور على منتجات في النظام</p>
+            </div>
+        `;
+        return;
+    }
     
     // تصفية المنتجات
     let filteredProducts;
@@ -2141,6 +2307,8 @@ function filterProductsByCategory(categoryId) {
     } else {
         filteredProducts = products.filter(product => product.category === categoryId);
     }
+    
+    console.log(`تم تصفية المنتجات: ${filteredProducts.length} منتج`);
     
     // عرض المنتجات
     if (filteredProducts.length === 0) {
@@ -2155,10 +2323,13 @@ function filterProductsByCategory(categoryId) {
     }
     
     filteredProducts.forEach(product => {
-        renderProduct(product, productsContainer);
+        try {
+            renderProduct(product, productsContainer);
+        } catch (error) {
+            console.error('خطأ في عرض المنتج:', error, product);
+        }
     });
 }
-
 /**
  * عرض منتج
  * @param {Object} product بيانات المنتج
@@ -2208,3 +2379,21 @@ function renderProduct(product, container) {
     container.appendChild(productCard);
 }
 
+// main.js modification
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Firebase first
+    try {
+        firebase.initializeApp(firebaseConfig);
+        console.log('Firebase initialized successfully');
+        
+        // Set the database reference
+        dbRef = firebase.database();
+        
+        // Continue with the rest of the initialization
+        checkAuthState();
+        setupEventListeners();
+    } catch (error) {
+        console.error('Error initializing Firebase:', error);
+        showNotification('خطأ', 'فشل في تهيئة قاعدة البيانات. يرجى إعادة تحميل الصفحة.', 'error');
+    }
+});
